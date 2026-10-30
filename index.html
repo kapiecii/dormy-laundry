@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ランドリー稼働状況 - ドーミーイン TV画面再現</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;800&display=swap');
+
+    body {
+      font-family: 'M PLUS 1p', sans-serif;
+      background-color: #000000;
+      color: #ffffff;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow: hidden;
+    }
+
+    /* 16:9 比率のアスペクト比維持コンテナ */
+    .tv-aspect-ratio {
+      aspect-ratio: 16 / 9;
+      max-height: 100vh;
+      max-width: calc(100vh * 16 / 9);
+    }
+
+    /* ドラム回転アニメーション */
+    @keyframes drum-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 逆回転 */
+    @keyframes drum-spin-reverse {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    /* 水流・波の揺れ */
+    @keyframes wave-slosh {
+      0%, 100% { transform: translateY(0) scaleY(1); }
+      50% { transform: translateY(-4px) scaleY(1.08) rotate(3deg); }
+    }
+
+    /* 泡・しぶきのフワフワ感 */
+    @keyframes bubble-rise {
+      0% { transform: translateY(6px) scale(0.7); opacity: 0.3; }
+      50% { opacity: 0.9; }
+      100% { transform: translateY(-10px) scale(1.2); opacity: 0; }
+    }
+
+    /* 洗濯物のがたがた振動 */
+    @keyframes laundry-vibrate {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-1px, 1px); }
+      75% { transform: translate(1px, -1px); }
+    }
+
+    .animate-spin-fast {
+      animation: drum-spin 2.4s linear infinite;
+    }
+    .animate-spin-clothes {
+      animation: drum-spin 3.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    }
+    .animate-spin-reverse {
+      animation: drum-spin-reverse 4s linear infinite;
+    }
+    .animate-wave {
+      animation: wave-slosh 1.6s ease-in-out infinite;
+    }
+    .animate-bubble-1 {
+      animation: bubble-rise 1.4s ease-out infinite;
+    }
+    .animate-bubble-2 {
+      animation: bubble-rise 1.8s ease-out infinite 0.6s;
+    }
+    .animate-vibrate {
+      animation: laundry-vibrate 0.15s infinite;
+    }
+
+    /* ドーミーイン特有の青バッジと赤バッジ */
+    .status-available {
+      background-color: #0b93e6;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+    }
+    .status-in-use {
+      background-color: #d81b1b;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ホバー時のほんのり浮き上がり */
+    .machine-card {
+      transition: transform 0.15s ease, filter 0.15s ease;
+      cursor: pointer;
+    }
+    .machine-card:hover {
+      transform: translateY(-2px) scale(1.02);
+      filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3));
+    }
+    .machine-card:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex items-center justify-center p-2 sm:p-4 bg-neutral-950">
+
+  <!-- TVフレーム画面（16:9をキープ） -->
+  <div class="tv-aspect-ratio w-full h-full bg-black flex flex-col justify-between p-4 sm:p-7 md:p-8 select-none relative shadow-2xl border border-neutral-900 rounded-sm">
+
+    <!-- ヘッダーエリア -->
+    <header class="w-full flex justify-between items-start">
+      <!-- 左側タイトル部分 -->
+      <div class="flex flex-col items-start gap-1">
+        <div class="bg-[#196ce6] text-white px-4 sm:px-6 py-1.5 sm:py-2 flex items-center gap-4 sm:gap-6 rounded-none shadow-md">
+          <span class="text-xs sm:text-base md:text-lg font-bold tracking-wider text-blue-100">9F 共用</span>
+          <h1 class="text-base sm:text-xl md:text-2xl font-bold tracking-widest whitespace-nowrap">ランドリー稼働状況</h1>
+        </div>
+        <p class="text-[10px] sm:text-xs md:text-sm text-gray-200 tracking-wide font-medium mt-1">
+          ［ ランドリーコーナーの使用状況をオンタイムで表示しています。］
+        </p>
+      </div>
+
+      <!-- 右側ボタン部分 -->
+      <div class="flex items-center gap-2 sm:gap-4 pt-1">
+        <!-- 女性専用 ボタン -->
+        <button id="btn-female-mode" class="bg-[#cd1e7e] hover:bg-[#b8166f] active:scale-95 text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-sm flex items-center gap-1.5 sm:gap-2 shadow text-xs sm:text-sm md:text-base font-bold transition-all border border-[#ea3f9c]">
+          <i class="fa-solid fa-circle-play text-[11px] sm:text-sm text-pink-200"></i>
+          <span>女性専用</span>
+        </button>
+
+        <!-- トップ ボタン -->
+        <button id="btn-top" class="border-2 border-[#d5dc27] bg-[#3a441e]/50 hover:bg-[#485526]/70 active:scale-95 text-[#e5ec35] hover:text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-sm flex items-center gap-1.5 sm:gap-2 shadow text-xs sm:text-sm md:text-base font-bold transition-all">
+          <i class="fa-solid fa-house text-xs sm:text-sm"></i>
+          <span>トップ</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- メイングリッド (乾燥機 4台 + 洗濯機 4台) -->
+    <main class="w-full flex-1 flex flex-col justify-around py-1 sm:py-3">
+      <!-- 上段: 乾燥機 1〜4 -->
+      <div id="dryer-row" class="grid grid-cols-4 gap-2 sm:gap-5 md:gap-7 items-center">
+        <!-- JSで動的レンダリング -->
+      </div>
+
+      <!-- 下段: 洗濯機 1〜4 -->
+      <div id="washer-row" class="grid grid-cols-4 gap-2 sm:gap-5 md:gap-7 items-center">
+        <!-- JSで動的レンダリング -->
+      </div>
+    </main>
+
+    <!-- 画面下部：子ども用・操作ガイドヒント -->
+    <footer class="w-full flex items-center justify-between text-[10px] sm:text-xs text-neutral-400 border-t border-neutral-900 pt-1.5">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>タップすると「利用可能」と「稼働中」を切り替えられます</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btn-demo-tick" class="text-neutral-400 hover:text-white underline text-[10px] sm:text-xs">
+          時間経過(+1分)
+        </button>
+        <button id="btn-reset-demo" class="text-neutral-400 hover:text-white underline text-[10px] sm:text-xs">
+          写真の初期状態に戻す
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // 初期デモデータ (写真の「洗濯機① 稼働中(39分経過)」「洗濯機④ 稼働中(36分経過)」を忠実に再現)
+    const initialData = {
+      dryers: [
+        { id: 1, name: '乾燥機 ①', type: 'dryer', inUse: false, minutes: 0 },
+        { id: 2, name: '乾燥機 ②', type: 'dryer', inUse: false, minutes: 0 },
+        { id: 3, name: '乾燥機 ③', type: 'dryer', inUse: false, minutes: 0 },
+        { id: 4, name: '乾燥機 ④', type: 'dryer', inUse: false, minutes: 0 }
+      ],
+      washers: [
+        { id: 1, name: '洗濯機 ①', type: 'washer', inUse: true, minutes: 39 },
+        { id: 2, name: '洗濯機 ②', type: 'washer', inUse: false, minutes: 0 },
+        { id: 3, name: '洗濯機 ③', type: 'washer', inUse: false, minutes: 0 },
+        { id: 4, name: '洗濯機 ④', type: 'washer', inUse: true, minutes: 36 }
+      ]
+    };
+
+    let state = JSON.parse(JSON.stringify(initialData));
+
+    // 洗濯機アイコンSVGの生成（利用中/稼働中のアニメーション制御）
+    function renderWasherIcon(machine) {
+      if (!machine.inUse) {
+        // 停止時・利用可能の洗濯機アイコン
+        return `
+          <svg viewBox="0 0 160 180" class="w-full h-auto max-h-[14vh] sm:max-h-[16vh] drop-shadow-md">
+            <!-- 外枠本体 (角丸長方形) -->
+            <rect x="15" y="10" width="130" height="160" rx="14" ry="14" fill="#ffffff" />
+            
+            <!-- 上部操作ランプ / ボタン -->
+            <circle cx="38" cy="28" r="5" fill="#1b1d22" />
+            <circle cx="56" cy="28" r="5" fill="#1b1d22" />
+            <line x1="85" y1="28" x2="128" y2="28" stroke="#1b1d22" stroke-width="4" stroke-linecap="round" />
+            
+            <!-- ドラム外枠 -->
+            <circle cx="80" cy="104" r="52" fill="#181a1f" />
+            <circle cx="80" cy="104" r="44" fill="#ffffff" stroke="#181a1f" stroke-width="4" />
+            <circle cx="80" cy="104" r="36" fill="#181a1f" />
+          </svg>
+        `;
+      }
+
+      // 稼働中の洗濯機アイコン (激しく回る水流、波しぶき、泡アニメーション)
+      return `
+        <svg viewBox="0 0 160 180" class="w-full h-auto max-h-[14vh] sm:max-h-[16vh] drop-shadow-md animate-vibrate">
+          <defs>
+            <!-- ドラム内クリップパス -->
+            <clipPath id="washer-drum-clip-${machine.id}">
+              <circle cx="80" cy="104" r="44" />
+            </clipPath>
+            <!-- 水のグラデーション -->
+            <linearGradient id="waterGrad-${machine.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="60%" stop-color="#0284c7" />
+              <stop offset="100%" stop-color="#0369a1" />
+            </linearGradient>
+            <!-- 泡のグラデーション -->
+            <radialGradient id="bubbleGrad" cx="30%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9" />
+              <stop offset="100%" stop-color="#bae6fd" stop-opacity="0.4" />
+            </radialGradient>
+          </defs>
+
+          <!-- 外枠本体 -->
+          <rect x="15" y="10" width="130" height="160" rx="14" ry="14" fill="#ffffff" />
+          
+          <!-- 上部操作ランプ（稼働中は緑ランプ点灯） -->
+          <circle cx="38" cy="28" r="5" fill="#10b981" class="animate-pulse" />
+          <circle cx="56" cy="28" r="5" fill="#f59e0b" />
+          <line x1="85" y1="28" x2="128" y2="28" stroke="#1b1d22" stroke-width="4" stroke-linecap="round" />
+
+          <!-- ドラム外縁リング -->
+          <circle cx="80" cy="104" r="52" fill="#181a1f" />
+          
+          <!-- ドラム内部 (クリッピングエリア) -->
+          <g clip-path="url(#washer-drum-clip-${machine.id})">
+            <!-- 濃い青色の背景水流 -->
+            <rect x="25" y="50" width="110" height="110" fill="#0c4a6e" />
+
+            <!-- 回転する水流リング (写真に見られる青いリングと水しぶき) -->
+            <g class="animate-spin-fast" style="transform-origin: 80px 104px;">
+              <circle cx="80" cy="104" r="38" fill="none" stroke="#38bdf8" stroke-width="10" stroke-dasharray="140 60" opacity="0.85" />
+              <circle cx="80" cy="104" r="27" fill="none" stroke="#bae6fd" stroke-width="5" stroke-dasharray="80 50" opacity="0.9" />
+              
+              <!-- 洗濯物モック (黄色いシャツとピンクのタオルがぐるぐる回転) -->
+              <circle cx="62" cy="85" r="9" fill="#facc15" opacity="0.8" />
+              <rect x="86" y="112" width="14" height="10" rx="3" fill="#f43f5e" opacity="0.85" transform="rotate(30 93 117)" />
+            </g>
+
+            <!-- 逆回転する水流と波 -->
+            <g class="animate-spin-reverse opacity-60" style="transform-origin: 80px 104px;">
+              <path d="M 50 104 Q 80 88 110 104 Q 80 120 50 104 Z" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="25 15" />
+            </g>
+
+            <!-- ドーミーイン画面特有の波型水面エフェクト (写真の下部ウェーブ) -->
+            <g class="animate-wave">
+              <path d="M 30 112 Q 55 98 80 112 T 130 112 L 130 155 L 30 155 Z" fill="url(#waterGrad-${machine.id})" opacity="0.75" />
+              <path d="M 30 116 Q 55 106 80 116 T 130 116" fill="none" stroke="#ffffff" stroke-width="2.5" opacity="0.6" />
+            </g>
+
+            <!-- 泡エフェクト -->
+            <circle cx="70" cy="108" r="4.5" fill="url(#bubbleGrad)" class="animate-bubble-1" />
+            <circle cx="92" cy="102" r="3.5" fill="url(#bubbleGrad)" class="animate-bubble-2" />
+            <circle cx="80" cy="120" r="5" fill="url(#bubbleGrad)" class="animate-bubble-1" />
+          </g>
+
+          <!-- ドアのガラスの円形フレーム -->
+          <circle cx="80" cy="104" r="44" fill="none" stroke="#1e293b" stroke-width="5" />
+          <!-- ガラスの光沢反射 -->
+          <path d="M 52 82 A 40 40 0 0 1 108 82" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.5" />
+        </svg>
+      `;
+    }
+
+    // 乾燥機アイコンSVGの生成（右上角が丸く斜めにカットされた実機デザインを完全再現）
+    function renderDryerIcon(machine) {
+      if (!machine.inUse) {
+        // 停止時・利用可能
+        return `
+          <svg viewBox="0 0 160 180" class="w-full h-auto max-h-[14vh] sm:max-h-[16vh] drop-shadow-md">
+            <!-- 外枠本体 (右上が大きくカーブした特徴的な乾燥機フォルム) -->
+            <path d="M 28 10 
+                     L 100 10 
+                     A 50 50 0 0 1 146 56 
+                     L 146 156 
+                     A 14 14 0 0 1 132 170 
+                     L 28 170 
+                     A 14 14 0 0 1 14 156 
+                     L 14 24 
+                     A 14 14 0 0 1 28 10 Z" 
+                  fill="#ffffff" />
+
+            <!-- 上部操作ランプ / ボタン -->
+            <circle cx="36" cy="30" r="5" fill="#1b1d22" />
+            <circle cx="54" cy="30" r="5" fill="#1b1d22" />
+            
+            <!-- ドラム外枠 -->
+            <circle cx="80" cy="104" r="52" fill="#181a1f" />
+            <circle cx="80" cy="104" r="44" fill="#ffffff" stroke="#181a1f" stroke-width="4" />
+            <circle cx="80" cy="104" r="36" fill="#181a1f" />
+          </svg>
+        `;
+      }
+
+      // 稼働中の乾燥機 (温風で衣類がふわふわタンブリング回転)
+      return `
+        <svg viewBox="0 0 160 180" class="w-full h-auto max-h-[14vh] sm:max-h-[16vh] drop-shadow-md">
+          <defs>
+            <clipPath id="dryer-drum-clip-${machine.id}">
+              <circle cx="80" cy="104" r="44" />
+            </clipPath>
+            <linearGradient id="warmHeatGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#451a03" />
+              <stop offset="100%" stop-color="#181a1f" />
+            </linearGradient>
+          </defs>
+
+          <!-- 右上カーブの本体 -->
+          <path d="M 28 10 
+                   L 100 10 
+                   A 50 50 0 0 1 146 56 
+                   L 146 156 
+                   A 14 14 0 0 1 132 170 
+                   L 28 170 
+                   A 14 14 0 0 1 14 156 
+                   L 14 24 
+                   A 14 14 0 0 1 28 10 Z" 
+                fill="#ffffff" />
+
+          <!-- ランプ (温熱オレンジランプ) -->
+          <circle cx="36" cy="30" r="5" fill="#f97316" class="animate-pulse" />
+          <circle cx="54" cy="30" r="5" fill="#ef4444" />
+
+          <!-- ドラム外枠 -->
+          <circle cx="80" cy="104" r="52" fill="#181a1f" />
+
+          <!-- 回転ドラム内部 -->
+          <g clip-path="url(#dryer-drum-clip-${machine.id})">
+            <!-- 温風ドラム背景 -->
+            <circle cx="80" cy="104" r="44" fill="url(#warmHeatGrad)" />
+            
+            <!-- 温風の渦ライン -->
+            <g class="animate-spin-reverse opacity-40" style="transform-origin: 80px 104px;">
+              <circle cx="80" cy="104" r="34" fill="none" stroke="#fb923c" stroke-width="3" stroke-dasharray="35 35" />
+              <circle cx="80" cy="104" r="22" fill="none" stroke="#fdba74" stroke-width="2.5" stroke-dasharray="25 25" />
+            </g>
+
+            <!-- タンブリング回転する洗濯物たち -->
+            <g class="animate-spin-clothes" style="transform-origin: 80px 104px;">
+              <!-- シャツ 1 (黄色) -->
+              <rect x="68" y="74" width="22" height="18" rx="4" fill="#facc15" transform="rotate(40 79 83)" />
+              <!-- タオル 2 (水色) -->
+              <rect x="80" y="105" width="24" height="15" rx="3" fill="#38bdf8" transform="rotate(-25 92 112)" />
+              <!-- 靴下 3 (白・赤) -->
+              <ellipse cx="62" cy="115" rx="8" ry="12" fill="#f43f5e" transform="rotate(20 62 115)" />
+            </g>
+          </g>
+
+          <!-- ドア外枠 -->
+          <circle cx="80" cy="104" r="44" fill="none" stroke="#334155" stroke-width="5" />
+          <path d="M 52 82 A 40 40 0 0 1 108 82" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.4" />
+        </svg>
+      `;
+    }
+
+    // 各カードのHTML構造生成
+    function createMachineCard(machine) {
+      const isWasher = machine.type === 'washer';
+      const iconSvg = isWasher ? renderWasherIcon(machine) : renderDryerIcon(machine);
+
+      // ステータスバッジのスタイルと文言
+      const badgeClass = machine.inUse ? 'status-in-use' : 'status-available';
+      const badgeText = machine.inUse 
+        ? `稼働中(${machine.minutes}分経過)` 
+        : '利用可能';
+
+      return `
+        <div class="machine-card flex flex-col items-center justify-center p-1 sm:p-2" onclick="toggleMachine('${machine.type}', ${machine.id})">
+          <!-- 上部アイコン本体 -->
+          <div class="w-full flex items-center justify-center px-1">
+            ${iconSvg}
+          </div>
+
+          <!-- 機器名称 (例: 乾燥機 ①, 洗濯機 ④) -->
+          <div class="text-[11px] sm:text-xs md:text-sm lg:text-base font-bold text-gray-200 mt-1 mb-1 tracking-wider text-center">
+            ${machine.name}
+          </div>
+
+          <!-- 下部ステータスバッジ -->
+          <div class="${badgeClass} w-full py-1 sm:py-1.5 px-0.5 rounded-sm text-center text-white font-bold text-[10px] sm:text-xs md:text-sm tracking-tight sm:tracking-normal whitespace-nowrap overflow-hidden text-ellipsis shadow transition-all duration-300">
+            ${badgeText}
+          </div>
+        </div>
+      `;
+    }
+
+    // 全体描画関数
+    function render() {
+      const dryerContainer = document.getElementById('dryer-row');
+      const washerContainer = document.getElementById('washer-row');
+
+      dryerContainer.innerHTML = state.dryers.map(createMachineCard).join('');
+      washerContainer.innerHTML = state.washers.map(createMachineCard).join('');
+    }
+
+    // クリックで「利用可能」と「稼働中」を切り替え
+    window.toggleMachine = function(type, id) {
+      const list = type === 'washer' ? state.washers : state.dryers;
+      const target = list.find(m => m.id === id);
+      if (target) {
+        target.inUse = !target.inUse;
+        if (target.inUse) {
+          // ランダムな経過時間（1〜42分）
+          target.minutes = Math.floor(Math.random() * 40) + 1;
+        } else {
+          target.minutes = 0;
+        }
+        render();
+      }
+    };
+
+    // 時間経過（+1分進める）
+    document.getElementById('btn-demo-tick').addEventListener('click', () => {
+      [...state.washers, ...state.dryers].forEach(m => {
+        if (m.inUse) {
+          m.minutes += 1;
+          if (m.minutes > 50) {
+            m.inUse = false; // 終了して空きになる
+            m.minutes = 0;
+          }
+        }
+      });
+      render();
+    });
+
+    // 初期化ボタン
+    document.getElementById('btn-reset-demo').addEventListener('click', () => {
+      state = JSON.parse(JSON.stringify(initialData));
+      render();
+    });
+
+    // 右上ボタンの軽いインタラクション
+    document.getElementById('btn-female-mode').addEventListener('click', () => {
+      // 画面タイトルのフロア切り替えデモ
+      const titleEl = document.querySelector('header span');
+      if (titleEl.textContent.includes('女性専用')) {
+        titleEl.textContent = '9F 共用';
+      } else {
+        titleEl.textContent = '女性専用フロア';
+      }
+    });
+
+    document.getElementById('btn-top').addEventListener('click', () => {
+      // 一時的に通知バーを表示
+      const notice = document.createElement('div');
+      notice.className = 'absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-900/90 text-white px-6 py-4 rounded-md border border-blue-400 shadow-2xl text-center z-50';
+      notice.innerHTML = '<p class="font-bold text-lg">客室トップメニューに戻ります</p><p class="text-xs text-blue-200 mt-1">（デモ用ポップアップです）</p>';
+      document.body.appendChild(notice);
+      setTimeout(() => notice.remove(), 1500);
+    });
+
+    // 自動時間経過タイマー (60秒ごとに稼働中マシンの経過時間を更新)
+    setInterval(() => {
+      [...state.washers, ...state.dryers].forEach(m => {
+        if (m.inUse) {
+          m.minutes += 1;
+        }
+      });
+      render();
+    }, 60000);
+
+    // 初回レンダリング
+    window.onload = function() {
+      render();
+    };
+  </script>
+</body>
+</html>
