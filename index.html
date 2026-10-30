@@ -123,6 +123,12 @@
 
       <!-- 右側ボタン部分 -->
       <div class="flex items-center gap-2 sm:gap-4 pt-1">
+        <!-- 全画面切り替え ボタン -->
+        <button id="btn-fullscreen" class="border border-neutral-600 bg-neutral-800/80 hover:bg-neutral-700 active:scale-95 text-neutral-200 hover:text-white px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-sm flex items-center gap-1.5 shadow text-xs sm:text-sm font-bold transition-all" title="全画面表示の切り替え">
+          <i id="fullscreen-icon" class="fa-solid fa-expand text-[11px] sm:text-sm"></i>
+          <span id="fullscreen-text" class="hidden sm:inline">全画面</span>
+        </button>
+
         <!-- 女性専用 ボタン -->
         <button id="btn-female-mode" class="bg-[#cd1e7e] hover:bg-[#b8166f] active:scale-95 text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-sm flex items-center gap-1.5 sm:gap-2 shadow text-xs sm:text-sm md:text-base font-bold transition-all border border-[#ea3f9c]">
           <i class="fa-solid fa-circle-play text-[11px] sm:text-sm text-pink-200"></i>
@@ -465,6 +471,36 @@
       notice.innerHTML = '<p class="font-bold text-lg">客室トップメニューに戻ります</p><p class="text-xs text-blue-200 mt-1">（デモ用ポップアップです）</p>';
       document.body.appendChild(notice);
       setTimeout(() => notice.remove(), 1500);
+    });
+
+    // 全画面（フルスクリーン）切り替え制御
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    const fullscreenIcon = document.getElementById('fullscreen-icon');
+    const fullscreenText = document.getElementById('fullscreen-text');
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.warn(`全画面表示エラー: ${err.message}`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    btnFullscreen.addEventListener('click', toggleFullscreen);
+
+    // フルスクリーンの状態変化に応じてアイコンとテキストを切り替え
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) {
+        fullscreenIcon.className = 'fa-solid fa-compress text-[11px] sm:text-sm';
+        fullscreenText.textContent = '解除';
+      } else {
+        fullscreenIcon.className = 'fa-solid fa-expand text-[11px] sm:text-sm';
+        fullscreenText.textContent = '全画面';
+      }
     });
 
     // 自動時間経過タイマー (60秒ごとに稼働中マシンの経過時間を更新)
